@@ -1,6 +1,8 @@
-use super::method::{Method, MethodError};
+use super::{
+    method::{Method, MethodError},
+    QueryString, QueryStringValue,
+};
 use std::{
-    char,
     convert::TryFrom,
     error::Error,
     fmt::{Debug, Display, Formatter, Result as FmtResult},
@@ -11,12 +13,13 @@ use std::{
 #[derive(Debug)]
 pub struct Request<'buf> {
     path: &'buf str,
-    query_string: Option<&'buf str>,
+    query_string: Option<QueryString<'buf>>,
     method: Method,
 }
 
 impl<'buf> Request<'buf> {
     fn from_byte_array(buffer: &[u8]) -> Result<Self, String> {
+        // let req: Request = self::TryFrom(buffer);
         // buffer.try_into()
         unimplemented!()
         // buffer.try_into()
@@ -46,9 +49,11 @@ impl<'buf> TryFrom<&'buf [u8]> for Request<'buf> {
 
         let mut query_string = None;
 
+        // QueryString::from(query_string);
+
         // This removes an empty match arm by allowing the if statement to only execute if the Option value returns something
         if let Some(i) = path.find("?") {
-            query_string = Some(&path[i + 1..]);
+            query_string = Some(QueryString::from(&path[i + 1..]));
             // This variable is marked as mutable which allows it to be reassigned to
             path = &path[..i];
         }
