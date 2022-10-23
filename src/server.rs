@@ -1,6 +1,9 @@
 // crate utilizes the root of the module
 use crate::http::Request;
+use crate::http::Response;
+use crate::http::StatusCode;
 use std::io::Read;
+use std::io::Write;
 use std::net::TcpListener;
 
 #[derive(Clone)]
@@ -14,7 +17,6 @@ impl Server {
     }
 
     pub fn run(&self) {
-        TcpListener::bind(&self.addr).unwrap();
         let listener = TcpListener::bind(&self.addr).unwrap();
 
         println!("Listening on... {}", self.addr);
@@ -31,6 +33,12 @@ impl Server {
                             match Request::try_from(&buffer[..]) {
                                 Ok(request) => {
                                     dbg!(request);
+                                    let resp = Response::new(
+                                        StatusCode::Ok,
+                                        Some("<h1>Yoo</h1>".to_string()),
+                                    );
+
+                                    resp.send(&mut stream);
                                 }
                                 Err(e) => println!("Failed to parse a request: {}", e),
                             }

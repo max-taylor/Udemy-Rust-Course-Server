@@ -1,6 +1,6 @@
 use super::{
     method::{Method, MethodError},
-    QueryString, QueryStringValue,
+    QueryString,
 };
 use std::{
     convert::TryFrom,
@@ -15,15 +15,6 @@ pub struct Request<'buf> {
     path: &'buf str,
     query_string: Option<QueryString<'buf>>,
     method: Method,
-}
-
-impl<'buf> Request<'buf> {
-    fn from_byte_array(buffer: &[u8]) -> Result<Self, String> {
-        // let req: Request = self::TryFrom(buffer);
-        // buffer.try_into()
-        unimplemented!()
-        // buffer.try_into()
-    }
 }
 
 impl<'buf> TryFrom<&'buf [u8]> for Request<'buf> {
@@ -48,8 +39,6 @@ impl<'buf> TryFrom<&'buf [u8]> for Request<'buf> {
         let method: Method = method.parse()?;
 
         let mut query_string = None;
-
-        // QueryString::from(query_string);
 
         // This removes an empty match arm by allowing the if statement to only execute if the Option value returns something
         if let Some(i) = path.find("?") {
