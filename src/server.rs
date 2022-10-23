@@ -1,10 +1,19 @@
+use crate::http::ParseError;
 // crate utilizes the root of the module
 use crate::http::Request;
 use crate::http::Response;
 use crate::http::StatusCode;
 use std::io::Read;
-use std::io::Write;
 use std::net::TcpListener;
+
+pub trait Handler {
+    fn handle_request(&mut self, request: &Request) -> Response;
+
+    fn handle_bad_request(&mut self, e: &ParseError) -> Response {
+        println!("Failed to parse request: {}", e);
+        Response::new(StatusCode::BadRequest, None)
+    }
+}
 
 #[derive(Clone)]
 pub struct Server {
@@ -16,7 +25,7 @@ impl Server {
         Self { addr }
     }
 
-    pub fn run(&self) {
+    pub fn run(&self, mut handler: impl Handler) {
         let listener = TcpListener::bind(&self.addr).unwrap();
 
         println!("Listening on... {}", self.addr);
@@ -30,17 +39,22 @@ impl Server {
                         Ok(_) => {
                             // println!("Received a request: {}", String::from_utf8_lossy(&buffer));
 
-                            match Request::try_from(&buffer[..]) {
+                            let response = match Request::try_from(&buffer[..]) {
                                 Ok(request) => {
-                                    dbg!(request);
-                                    let resp = Response::new(
-                                        StatusCode::Ok,
-                                        Some("<h1>Yoo</h1>".to_string()),
-                                    );
+                                    dbg!(&request);
 
-                                    resp.send(&mut stream);
+                                    handler.handle_request(&request)
+                                    // Response::new(StatusCode::Ok, Some("<h1>Yoo</h1>".to_string()))
                                 }
-                                Err(e) => println!("Failed to parse a request: {}", e),
+                                Err(e) => {
+                                    println!("Failed to parse a request: {}", e);
+
+                                    handler.handle_bad_request(&e)
+                                }
+                            };
+
+                            if let Err(e) = response.send(&mut stream) {
+                                println!("Failed to send response: {}", e);
                             }
                         }
                         Err(err) => {
