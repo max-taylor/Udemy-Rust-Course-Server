@@ -2,10 +2,13 @@ use crate::http::ParseError;
 use crate::http::Request;
 use crate::http::Response;
 use crate::http::StatusCode;
+use std::io::Error;
 use std::io::Read;
+use std::net::SocketAddr;
 use std::net::TcpListener;
+use std::net::TcpStream;
 
-pub trait Handler {
+pub trait Handler: Send {
     fn handle_request(&mut self, request: &Request) -> Response;
 
     fn handle_bad_request(&mut self, e: &ParseError) -> Response {
@@ -17,11 +20,52 @@ pub trait Handler {
 #[derive(Clone)]
 pub struct Server {
     addr: String,
+    num_threads: u16,
 }
 
 impl Server {
     pub fn new(addr: String) -> Self {
-        Self { addr }
+        Self {
+            addr,
+            num_threads: 10,
+        }
+    }
+
+    fn handle_listener(
+        &self,
+        handler: &mut impl Handler,
+        accepted_listener: Result<(TcpStream, SocketAddr), Error>,
+    ) {
+        if let Some(err) = accepted_listener.as_ref().err() {
+            println!("Failed to establish a connection: {err}");
+
+            return;
+        }
+
+        let (mut stream, _) = accepted_listener.unwrap();
+
+        let mut buffer = [0; 1024];
+
+        let read_response = stream.read(&mut buffer);
+
+        if let Some(err) = read_response.err() {
+            println!("Failed to read stream buffer: ${err}");
+
+            return;
+        }
+
+        let response = match Request::try_from(&buffer[..]) {
+            Ok(request) => handler.handle_request(&request),
+            Err(e) => handler.handle_bad_request(&e),
+        };
+
+        if let Err(e) = response.send(&mut stream) {
+            println!("Failed to send response: {}", e);
+
+            return;
+        }
+
+        println!("Successfully sent response");
     }
 
     pub fn run(&self, mut handler: impl Handler) {
@@ -30,30 +74,15 @@ impl Server {
         println!("Listening on... {}", self.addr);
 
         loop {
-            match listener.accept() {
-                Ok((mut stream, _)) => {
-                    let mut buffer = [0; 1024];
+            let accepting_listener = listener.accept();
 
-                    match stream.read(&mut buffer) {
-                        Ok(_) => {
-                            let response = match Request::try_from(&buffer[..]) {
-                                Ok(request) => handler.handle_request(&request),
-                                Err(e) => handler.handle_bad_request(&e),
-                            };
+            self.handle_listener(&mut handler, accepting_listener);
 
-                            if let Err(e) = response.send(&mut stream) {
-                                println!("Failed to send response: {}", e);
-                            }
-                        }
-                        Err(err) => {
-                            println!("Failed to read stream buffer: ${err}");
-                        }
-                    }
-                }
-                Err(err) => {
-                    println!("Failed to establish a connection: {err}");
-                }
-            }
+            // let created_thread = thread::spawn(move || self.handle_thread());
+            // // let created_thread =
+            // //     thread::spawn(|| self.handle_listener(&mut handler, accepting_listener));
+
+            // created_thread.join();
         }
     }
 }
