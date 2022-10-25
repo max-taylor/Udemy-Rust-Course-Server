@@ -7,11 +7,12 @@ use std::io::Read;
 use std::net::SocketAddr;
 use std::net::TcpListener;
 use std::net::TcpStream;
+use std::thread;
 
-pub trait Handler: Send {
-    fn handle_request(&mut self, request: &Request) -> Response;
+pub trait Handler: Sync + Send {
+    fn handle_request(&self, request: &Request) -> Response;
 
-    fn handle_bad_request(&mut self, e: &ParseError) -> Response {
+    fn handle_bad_request(&self, e: &ParseError) -> Response {
         println!("Failed to parse request: {}", e);
         Response::new(StatusCode::BadRequest, None)
     }
@@ -33,7 +34,7 @@ impl Server {
 
     fn handle_listener(
         &self,
-        handler: &mut impl Handler,
+        handler: &impl Handler,
         accepted_listener: Result<(TcpStream, SocketAddr), Error>,
     ) {
         if let Some(err) = accepted_listener.as_ref().err() {
@@ -68,7 +69,9 @@ impl Server {
         println!("Successfully sent response");
     }
 
-    pub fn run(&self, mut handler: impl Handler) {
+    fn test_things(&self) {}
+
+    pub fn run(&'static self, handler: &'static impl Handler) {
         let listener = TcpListener::bind(&self.addr).unwrap();
 
         println!("Listening on... {}", self.addr);
@@ -76,13 +79,10 @@ impl Server {
         loop {
             let accepting_listener = listener.accept();
 
-            self.handle_listener(&mut handler, accepting_listener);
+            // self.handle_listener(&handler, accepting_listener);
 
             // let created_thread = thread::spawn(move || self.handle_thread());
-            // // let created_thread =
-            // //     thread::spawn(|| self.handle_listener(&mut handler, accepting_listener));
-
-            // created_thread.join();
+            thread::spawn(move || self.handle_listener(handler, accepting_listener));
         }
     }
 }

@@ -15,7 +15,7 @@ fn main() {
 
     let this_server = Server::new("localhost:3030".to_string());
 
-    this_server.run(WebsiteHandler::new(public_path));
+    this_server.run(&WebsiteHandler::new(public_path));
 }
 
 // Next Steps:
